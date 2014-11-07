@@ -1720,7 +1720,7 @@ unsigned int PELoadHeaders() {
          addr = (unsigned int)s.startEA;
          unsigned int need = (unsigned int)s.endEA - addr;
 
-         byte *buf = (byte*)malloc(need);
+         unsigned char *buf = (unsigned char*)malloc(need);
          fread(buf, 1, need, f);
          dos = (IMAGE_DOS_HEADER*)buf;
 
@@ -1776,7 +1776,7 @@ unsigned int ELFLoadHeaders() {
       tid_t elf_phdr = import_type(ti, -1, "Elf32_Phdr");
 #endif
 
-      byte *buf = (byte*)malloc(need);
+      unsigned char *buf = (unsigned char*)malloc(need);
       fread(buf, 1, need, f);
       elf = (Elf32_Ehdr*)buf;
       phdr = (Elf32_Phdr*)(buf + elf->e_phoff);

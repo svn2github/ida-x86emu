@@ -756,6 +756,7 @@ HandleNode *addNewModuleNode(const char *mod, unsigned int h, unsigned int id) {
       m->eat = m->handle + get_long(export_dir + 0x1C);  //ed.AddressOfFunctions;
       m->ent = m->handle + get_long(export_dir + 0x20);  //ed.AddressOfNames;
       m->eot = m->handle + get_long(export_dir + 0x24);  //ed.AddressOfNameOrdinals;
+      msg("module %s (0x%x-0x%x)\n", mod, h, m->maxAddr);
    }
    return m;
 }

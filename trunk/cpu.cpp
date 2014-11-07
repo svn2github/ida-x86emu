@@ -660,7 +660,9 @@ bool checkStackRange(unsigned int addr) {
 //return a unsigned char
 unsigned char readByte(unsigned int addr) {
    if (getseg(addr) == NULL) {
-      throw 14;  //page fault exception ??
+      if (!isModuleAddress(addr)) {
+         throw 14;  //page fault exception ??
+      }
    }
    return get_byte(addr);
 }
@@ -709,7 +711,9 @@ unsigned int readBuffer(unsigned int addr, void *buf, unsigned int nbytes) {
 //store a unsigned char
 void writeByte(unsigned int addr, unsigned char val) {
    if (getseg(addr) == NULL) {
-      throw 14;  //page fault exception ??
+      if (!isModuleAddress(addr)) {
+         throw 14;  //page fault exception ??
+      }
    }
    //could also check write to read only page
    if (checkStackRange(addr)) {

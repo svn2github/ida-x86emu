@@ -36,6 +36,8 @@
 #include "emuheap.h"
 #include "memmgr.h"
 
+#define MMAP_THRESHOLD 0x1000
+
 HeapBase *HeapBase::primaryHeap = NULL;
 
 //Constructor for malloc'ed node
@@ -72,6 +74,8 @@ EmuHeap::EmuHeap(unsigned int baseAddr, unsigned int currSize, unsigned int maxS
    if (primaryHeap == NULL) {
       primaryHeap = this;
    }
+   large = NULL;
+   numLarge = 0;
 }
 
 //Emulation heap constructor, indicate virtual address of base and max size
@@ -86,6 +90,8 @@ EmuHeap::EmuHeap(const char *name, unsigned int maxSize) {
    if (primaryHeap == NULL) {
       primaryHeap = this;
    }
+   large = NULL;
+   numLarge = 0;
 }
 
 EmuHeap::EmuHeap(Buffer &b, unsigned int num_blocks) {
@@ -94,6 +100,8 @@ EmuHeap::EmuHeap(Buffer &b, unsigned int num_blocks) {
    if (primaryHeap == NULL) {
       primaryHeap = this;
    }
+   large = NULL;
+   numLarge = 0;
 }
 
 //Construct new heap from binary buffer data
@@ -119,9 +127,11 @@ EmuHeap::EmuHeap(Buffer &b) {
          p = this;
       }
    }
+   large = NULL;
+   numLarge = 0;
 }
 
-//read a head consisting of num_blocks allocated blocks from a buffer
+//read a heap consisting of num_blocks allocated blocks from a buffer
 void EmuHeap::readHeap(Buffer &b, unsigned int num_blocks) {
    b.read((char*)&base, sizeof(base));
    b.read((char*)&size, sizeof(size));
@@ -180,9 +190,19 @@ EmuHeap::~EmuHeap() {
 
 //Emulation heap malloc function
 unsigned int EmuHeap::malloc(unsigned int size) {
+   unsigned int addr;
    size = (size + 3) & 0xFFFFFFFC;  //round up to word boundary
    //find a gap that we can fit in
-   unsigned int addr = findBlock(size);
+   if (size >= MMAP_THRESHOLD) {
+      //use mmap to fulfil the request
+      size += (MMAP_THRESHOLD - 1);
+      size &= ~(MMAP_THRESHOLD - 1);
+      addr = MemMgr::mmap(0, size, 0, 0);
+      size |= 1;
+   }
+   else {
+      addr = findBlock(size);
+   }
    if (addr != HEAP_ERROR) {
       //create and insert a new malloc node into the allocation list
       insert(new MallocNode(size, addr));
@@ -196,10 +216,14 @@ unsigned int EmuHeap::calloc(unsigned int nmemb, unsigned int size) {
    unsigned int total = nmemb * size;
    unsigned int addr = this->malloc(total);
    if (addr != HEAP_ERROR) {
-      //find the newly malloc'ed block and zeroize it
-      for (unsigned int i = 0; i < total; i++) {
-         patch_byte(addr + i, 0);
-      } 
+      //find the newly malloc'ed block and zeroize it if necessary
+      MallocNode *p = findMallocNode(addr);
+      if ((p->size & 1) == 0) {
+         //this is a smaller block so zeroize it
+         for (unsigned int i = 0; i < total; i++) {
+            patch_byte(addr + i, 0);
+         } 
+      }
    }
    return addr;
 }
@@ -220,6 +244,10 @@ unsigned int EmuHeap::free(unsigned int addr) {
                head = t->next;
             }
             //free the malloc'ed memory
+            if (t->size & 1) {
+               //this was a large block
+               MemMgr::munmap(t->base, t->size);
+            }
             delete t;
             break;
          }
@@ -302,7 +330,7 @@ MallocNode *EmuHeap::findMallocNode(unsigned int addr) {
 
 unsigned int EmuHeap::sizeOf(unsigned int addr) {
    MallocNode *result = findMallocNode(addr);
-   return result ? result->size : 0xffffffff;
+   return result ? (result->size & ~1) : 0xffffffff;
 }
 
 bool EmuHeap::checkHeapSize(unsigned int newsize) {
@@ -327,6 +355,10 @@ unsigned int EmuHeap::findBlock(unsigned int bsize) {
    MallocNode *p;
    //first see if we can fit in a gap between exiting blocks
    for (p = head; p && p->next; p = p->next) {
+      if (p->size & 1 || p->next->size & 1) {
+         //one or both are large blocks so skip
+         continue;
+      }
       unsigned int gap = p->next->base - (p->base + p->size);
       if ((bsize + 8) <= gap) {
          return p->base + p->size + 4;
@@ -369,7 +401,7 @@ unsigned int HeapBase::addHeap(unsigned int maxSize, unsigned int base) {
    char buf[16];
    int count = 0;
    if (primaryHeap == 0) {
-      MemMgr::mmap(base, 0x10000, 0, 0, ".heap");
+      MemMgr::mmap(base, maxSize, 0, 0, ".heap");
       primaryHeap = new EmuHeap(".heap", maxSize);
       return base;
    }

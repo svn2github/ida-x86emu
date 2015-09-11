@@ -1482,7 +1482,7 @@ void dumpHeap() {
    const MallocNode *n = HeapBase::getHeap()->heapHead();
    msg("x86emu: Heap Status ---\n");
    while (n) {
-      unsigned int sz = n->getSize();
+      unsigned int sz = n->getSize() & ~1;
       unsigned int base = n->getBase();
       msg("   0x%x-0x%x (0x%x bytes)\n", base, base + sz - 1, sz);
       n = n->nextNode();

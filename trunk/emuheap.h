@@ -41,9 +41,13 @@ public:
 
 private:
    unsigned int base;
-   unsigned char *block;
    unsigned int size;
    MallocNode *next;
+};
+
+struct LargeBlock {
+   unsigned int base;
+   unsigned int size;
 };
 
 class HeapBase {
@@ -92,6 +96,8 @@ protected:
    unsigned int max;
    unsigned int size;
    MallocNode *head;
+   LargeBlock *large;
+   unsigned int numLarge;
    HeapBase *nextHeap;
    static HeapBase *primaryHeap;
 };
